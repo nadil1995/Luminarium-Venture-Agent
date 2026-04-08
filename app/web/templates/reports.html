@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Reports — Luminarium Venture IQ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="row">
+    <h1>Reports</h1>
+    <button class="btn btn-primary" id="runBtn" onclick="triggerRun()">▶ Run Now</button>
+  </div>
+</div>
+
+{# Batch reports #}
+{% if batch_runs %}
+<div class="card">
+  <h2>Batch Reports (full run)</h2>
+  <div class="hr"></div>
+  <table>
+    <thead><tr>
+      <th>Run ID</th><th>Started</th><th>Startups</th><th>Status</th><th>Report</th>
+    </tr></thead>
+    <tbody>
+    {% for r in batch_runs %}
+    <tr>
+      <td class="small" style="font-family:monospace">{{ r.run_id }}</td>
+      <td class="small">{{ r.started_at[:19] if r.started_at else '—' }}</td>
+      <td>{{ r.new_count }}</td>
+      <td><span class="badge {% if r.status == 'success' %}b-good{% elif r.status == 'error' %}b-bad{% else %}b-mid{% endif %}">
+        {{ r.status }}
+      </span></td>
+      <td>
+        <a href="/reports/batch/{{ r.run_id }}" target="_blank" class="btn btn-secondary" style="padding:4px 10px;font-size:11px">
+          Open Judging Pack ↗
+        </a>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# Individual deep-dives #}
+<div class="card" style="margin-top:14px">
+  <div class="row">
+    <h2 style="margin:0">Individual Deep-Dive Reports</h2>
+    <div class="small">{{ processed | length }} submission(s)</div>
+  </div>
+  <div class="hr"></div>
+  {% if processed %}
+  <table>
+    <thead><tr>
+      <th>Startup</th><th>Submitter</th><th>Email</th><th>Category</th>
+      <th>Submission Date</th><th>Processed</th><th>Deep-Dive</th><th>Regenerate</th>
+    </tr></thead>
+    <tbody>
+    {% for p in processed %}
+    <tr>
+      <td><b>{{ p.startup_name or '—' }}</b></td>
+      <td class="small">{{ p.submitter_name or '—' }}</td>
+      <td class="small">{{ p.email or '—' }}</td>
+      <td class="small">—</td>
+      <td class="small">{{ p.timestamp[:19] if p.timestamp else '—' }}</td>
+      <td class="small">{{ p.processed_at[:19] if p.processed_at else '—' }}</td>
+      <td>
+        <a href="/reports/{{ p.submission_id }}" target="_blank"
+           class="btn btn-secondary" style="padding:4px 10px;font-size:11px">
+          Open ↗
+        </a>
+      </td>
+      <td>
+        <button onclick="triggerRegenerate('{{ p.submission_id }}')"
+                class="btn btn-danger" style="padding:4px 10px;font-size:11px">
+          ↺ Redo
+        </button>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="small" style="padding:24px;text-align:center">
+    No reports yet. Run the pipeline to process new submissions.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

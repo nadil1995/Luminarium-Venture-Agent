@@ -1,0 +1,25 @@
+services:
+  agent:
+    build: .
+    container_name: luminarium_agent
+    command: python app/main.py
+    env_file: .env
+    volumes:
+      - ./credentials:/credentials:ro
+      - ./data:/data
+      - ./reports:/reports
+    restart: unless-stopped
+    depends_on: []
+
+  web:
+    build: .
+    container_name: luminarium_web
+    command: python app/web/server.py
+    env_file: .env
+    ports:
+      - "${WEB_PORT:-5050}:5050"
+    volumes:
+      - ./credentials:/credentials:ro
+      - ./data:/data
+      - ./reports:/reports
+    restart: unless-stopped

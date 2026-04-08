@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Logs — Luminarium Venture IQ{% endblock %}
+
+{% block head %}
+<style>
+.log-box{background:#060b14;border:1px solid var(--line);border-radius:10px;
+  padding:14px;font-family:monospace;font-size:12px;line-height:1.6;
+  max-height:380px;overflow-y:auto;color:#a8c0e0}
+.log-box .err{color:#ff6b6b} .log-box .warn{color:#f6c453} .log-box .info{color:#86efc0}
+.tab-bar{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:16px}
+.tab{padding:10px 18px;cursor:pointer;font-size:13px;color:var(--muted);border-bottom:2px solid transparent}
+.tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.tab-panel{display:none} .tab-panel.active{display:block}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="row">
+    <h1>Logs</h1>
+    <div style="display:flex;gap:10px;align-items:center">
+      {% if runs %}
+      <form method="GET" style="display:flex;gap:8px;align-items:center">
+        <label class="small">Filter by run:</label>
+        <select name="run_id" onchange="this.form.submit()"
+                style="background:#111a2e;border:1px solid var(--line);color:var(--text);
+                       padding:5px 10px;border-radius:6px;font-size:12px">
+          <option value="">All runs</option>
+          {% for r in runs %}
+          <option value="{{ r.run_id }}" {% if selected_run == r.run_id %}selected{% endif %}>
+            {{ r.run_id }} ({{ r.started_at[:10] if r.started_at else '' }})
+          </option>
+          {% endfor %}
+        </select>
+      </form>
+      {% endif %}
+      <button class="btn btn-primary" id="runBtn" onclick="triggerRun()">▶ Run Now</button>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="tab-bar">
+    <div class="tab active" onclick="showTab('events')">Submission Events ({{ submission_events | length }})</div>
+    <div class="tab" onclick="showTab('process')">Process Log</div>
+    <div class="tab" onclick="showTab('submissions')">Submissions Log</div>
+  </div>
+
+  {# Submission events table #}
+  <div id="tab-events" class="tab-panel active">
+    {% if submission_events %}
+    <table>
+      <thead><tr>
+        <th>Time</th><th>Run</th><th>Startup</th><th>Event</th><th>Detail</th>
+      </tr></thead>
+      <tbody>
+      {% for e in submission_events %}
+      <tr>
+        <td class="small">{{ e.created_at[:19] if e.created_at else '—' }}</td>
+        <td class="small" style="font-family:monospace">{{ e.run_id[:20] if e.run_id else '—' }}</td>
+        <td>{{ e.startup_name or '—' }}</td>
+        <td>
+          <span class="badge
+            {% if e.event == 'analyzed' or e.event == 'report_generated' %}b-good
+            {% elif e.event == 'skipped' %}b-mid
+            {% elif e.event == 'error' %}b-bad
+            {% else %}b-mid{% endif %}">
+            {{ e.event }}
+          </span>
+        </td>
+        <td class="small">{{ e.detail or '—' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="small" style="padding:24px;text-align:center">No events recorded yet.</div>
+    {% endif %}
+  </div>
+
+  {# Process log file #}
+  <div id="tab-process" class="tab-panel">
+    <div class="log-box" id="processLog">
+      {% for line in process_lines %}
+      <div class="
+        {% if 'ERROR' in line %}err
+        {% elif 'WARNING' in line %}warn
+        {% elif 'INFO' in line %}info
+        {% endif %}
+      ">{{ line }}</div>
+      {% endfor %}
+      {% if not process_lines %}
+      <div style="color:var(--muted)">No process log entries yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Submissions log file #}
+  <div id="tab-submissions" class="tab-panel">
+    <div class="log-box" id="subLog">
+      {% for line in submission_lines %}
+      <div class="
+        {% if 'ERROR' in line %}err
+        {% elif 'WARNING' in line %}warn
+        {% elif 'INFO' in line %}info
+        {% endif %}
+      ">{{ line }}</div>
+      {% endfor %}
+      {% if not submission_lines %}
+      <div style="color:var(--muted)">No submission log entries yet.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    t.classList.toggle('active', ['events','process','submissions'][i]===name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p=>{
+    p.classList.toggle('active', p.id==='tab-'+name);
+  });
+  // scroll log boxes to bottom
+  const box = document.getElementById(name==='process'?'processLog':'subLog');
+  if(box) box.scrollTop = box.scrollHeight;
+}
+// Auto-scroll log boxes on load
+document.querySelectorAll('.log-box').forEach(b=>b.scrollTop=b.scrollHeight);
+</script>
+{% endblock %}

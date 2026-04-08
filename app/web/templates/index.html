@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Luminarium Venture IQ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="row">
+    <div>
+      <h1>Dashboard</h1>
+      <div class="small" style="margin-top:4px">
+        Scheduler runs at UTC hours: <b>{{ schedule_hours | join(', ') }}</b>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" id="runBtn" onclick="triggerRun()">▶ Run Now</button>
+      <a href="/reports" class="btn btn-secondary">View Reports</a>
+      <a href="/logs" class="btn btn-secondary">View Logs</a>
+    </div>
+  </div>
+</div>
+
+{# Stats row #}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:14px">
+  <div class="card" style="text-align:center">
+    <div class="small">Total Processed</div>
+    <div style="font-size:36px;font-weight:800;color:var(--accent)">{{ processed | length }}</div>
+  </div>
+  <div class="card" style="text-align:center">
+    <div class="small">Total Runs</div>
+    <div style="font-size:36px;font-weight:800;color:var(--info)">{{ runs | length }}</div>
+  </div>
+  <div class="card" style="text-align:center">
+    <div class="small">Last Run Status</div>
+    {% if runs %}
+    <div style="font-size:22px;font-weight:700" class="status-{{ runs[0].status }}">
+      {{ runs[0].status | upper }}
+    </div>
+    <div class="small">{{ runs[0].started_at[:19] if runs[0].started_at else '—' }}</div>
+    {% else %}
+    <div style="font-size:22px;font-weight:700;color:var(--muted)">—</div>
+    {% endif %}
+  </div>
+  <div class="card" style="text-align:center">
+    <div class="small">Next Scheduled Run</div>
+    <div style="font-size:15px;font-weight:700;color:var(--mid);margin-top:8px">
+      {% if schedule_hours %}{{ schedule_hours[0] }}:00 & {{ schedule_hours[-1] }}:00 UTC{% else %}—{% endif %}
+    </div>
+  </div>
+</div>
+
+{# Recent runs #}
+<div class="card" style="margin-top:20px">
+  <div class="row">
+    <h2 style="margin:0">Recent Pipeline Runs</h2>
+    <a href="/logs" class="small">View all logs →</a>
+  </div>
+  <div class="hr"></div>
+  {% if runs %}
+  <table>
+    <thead><tr>
+      <th>Run ID</th><th>Trigger</th><th>Status</th>
+      <th>New</th><th>Skipped</th><th>Started</th><th>Batch Report</th>
+    </tr></thead>
+    <tbody>
+    {% for r in runs %}
+    <tr>
+      <td class="small" style="font-family:monospace">{{ r.run_id }}</td>
+      <td><span class="pill">{{ r.trigger }}</span></td>
+      <td><span class="badge {% if r.status == 'success' %}b-good{% elif r.status == 'error' %}b-bad{% else %}b-mid{% endif %}">
+        {{ r.status }}
+      </span></td>
+      <td>{{ r.new_count }}</td>
+      <td>{{ r.skipped_count }}</td>
+      <td class="small">{{ r.started_at[:19] if r.started_at else '—' }}</td>
+      <td>
+        {% if r.batch_report_path %}
+        <a href="/reports/batch/{{ r.run_id }}" target="_blank" class="btn btn-secondary" style="padding:4px 10px;font-size:11px">Open ↗</a>
+        {% else %}—{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="small" style="padding:20px;text-align:center">No runs yet. Click "Run Now" to process submissions.</div>
+  {% endif %}
+</div>
+
+{# Recent submissions #}
+<div class="card" style="margin-top:14px">
+  <div class="row">
+    <h2 style="margin:0">Recently Processed Submissions</h2>
+    <a href="/reports" class="small">View all →</a>
+  </div>
+  <div class="hr"></div>
+  {% if processed %}
+  <table>
+    <thead><tr>
+      <th>Startup</th><th>Submitter</th><th>Email</th><th>Processed</th><th>Report</th>
+    </tr></thead>
+    <tbody>
+    {% for p in processed %}
+    <tr>
+      <td><b>{{ p.startup_name or '—' }}</b></td>
+      <td class="small">{{ p.submitter_name or '—' }}</td>
+      <td class="small">{{ p.email or '—' }}</td>
+      <td class="small">{{ p.processed_at[:19] if p.processed_at else '—' }}</td>
+      <td>
+        <a href="/reports/{{ p.submission_id }}" target="_blank" class="btn btn-secondary" style="padding:4px 10px;font-size:11px">Deep-dive ↗</a>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="small" style="padding:20px;text-align:center">No submissions processed yet.</div>
+  {% endif %}
+</div>
+{% endblock %}

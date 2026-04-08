@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>{% block title %}Luminarium Venture IQ{% endblock %}</title>
+<style>
+:root{
+  --bg:#0b0f19;--card:#111a2e;--muted:#9fb0d0;--text:#eaf0ff;
+  --good:#2ecc71;--mid:#f1c40f;--bad:#e74c3c;--info:#64b5ff;
+  --accent:#b69cff;--pill:#172447;--line:#1e2d4a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text)}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+.wrap{max-width:1200px;margin:0 auto;padding:0 20px 60px}
+nav{background:#080d17;border-bottom:1px solid var(--line);padding:0 24px;display:flex;align-items:center;gap:0;position:sticky;top:0;z-index:100}
+.nav-brand{font-weight:800;font-size:15px;color:var(--accent);padding:16px 24px 16px 0;white-space:nowrap}
+.nav-brand span{color:var(--muted);font-weight:400}
+nav a{color:var(--muted);font-size:13px;padding:16px 14px;display:inline-block;border-bottom:2px solid transparent;transition:color .15s}
+nav a:hover,nav a.active{color:var(--text);border-bottom-color:var(--accent);text-decoration:none}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px;margin-top:14px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.small{color:var(--muted);font-size:12px;line-height:1.4}
+.hr{height:1px;background:rgba(255,255,255,.09);margin:14px 0}
+.pill{background:var(--pill);border:1px solid rgba(255,255,255,.10);padding:5px 10px;border-radius:999px;font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.dot.good{background:var(--good)} .dot.mid{background:var(--mid)} .dot.bad{background:var(--bad)} .dot.info{background:var(--info)}
+table{width:100%;border-collapse:collapse}
+th,td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.07);vertical-align:top;font-size:13px}
+th{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;text-align:left;background:rgba(255,255,255,.025)}
+tr:hover td{background:rgba(255,255,255,.015)}
+.badge{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700}
+.b-good{background:rgba(46,204,113,.12);color:#86efc0}
+.b-mid{background:rgba(241,196,15,.12);color:#ffd77f}
+.b-bad{background:rgba(231,76,60,.12);color:#ff9a9a}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:linear-gradient(135deg,#6b4fff,#b69cff);color:#fff}
+.btn-secondary{background:rgba(255,255,255,.07);color:var(--text);border:1px solid var(--line)}
+.btn-danger{background:rgba(231,76,60,.15);color:#ff9a9a;border:1px solid rgba(231,76,60,.2)}
+h1{margin:0;font-size:22px} h2{font-size:18px;margin:0 0 10px} h3{font-size:15px;margin:0 0 8px}
+.page-header{padding:28px 0 6px}
+.status-running{color:var(--mid)} .status-success{color:var(--good)} .status-error{color:var(--bad)} .status-partial{color:var(--mid)}
+#toast{position:fixed;bottom:24px;right:24px;background:#1a2540;border:1px solid var(--line);border-radius:10px;padding:12px 18px;font-size:13px;display:none;z-index:999;max-width:340px}
+</style>
+{% block head %}{% endblock %}
+</head>
+<body>
+<nav>
+  <div class="nav-brand">Luminarium <span>Venture IQ</span></div>
+  <a href="/" class="{% if request.path == '/' %}active{% endif %}">Dashboard</a>
+  <a href="/reports" class="{% if request.path.startswith('/reports') %}active{% endif %}">Reports</a>
+  <a href="/logs" class="{% if request.path.startswith('/logs') %}active{% endif %}">Logs</a>
+</nav>
+<div class="wrap">
+  {% block content %}{% endblock %}
+</div>
+<div id="toast"></div>
+<script>
+function toast(msg, ok=true){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.display='block';
+  t.style.borderColor=ok?'rgba(46,204,113,.3)':'rgba(231,76,60,.3)';
+  t.style.color=ok?'#86efc0':'#ff9a9a';
+  setTimeout(()=>{t.style.display='none'},4000);
+}
+async function triggerRun(){
+  const btn=document.getElementById('runBtn');
+  if(btn){btn.disabled=true;btn.textContent='Starting…'}
+  const r=await fetch('/run',{method:'POST'});
+  const d=await r.json();
+  toast('Pipeline started — check logs for progress.');
+  if(btn){btn.disabled=false;btn.textContent='Run Now'}
+}
+async function triggerRegenerate(sid){
+  if(!confirm('Reprocess submission '+sid+'?'))return;
+  const r=await fetch('/regenerate/'+sid,{method:'POST'});
+  const d=await r.json();
+  toast('Regenerating '+sid+'…');
+}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
