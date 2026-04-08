@@ -5,7 +5,7 @@ pipeline {
         DOCKER_IMAGE   = "nadil95/luminarium-agent:latest"
         EC2_HOST       = "54.151.85.104"
         EC2_USER       = "ubuntu"
-        SSH_CREDENTIALS = "geo-ssh"
+        SSH_CREDENTIALS = "lum-ssh"
         APP_DIR        = "/home/ubuntu/startupAgent"
     }
 
