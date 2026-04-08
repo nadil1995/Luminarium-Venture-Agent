@@ -2,91 +2,96 @@ pipeline {
     agent any
 
     environment {
-        APP_DIR        = '/home/ec2-user/startupAgent'
-        COMPOSE_FILE   = 'docker-compose.yml'
-        EC2_USER       = 'ec2-user'
-        // Jenkins credential IDs — set these in Jenkins > Manage Credentials
-        EC2_SSH_CRED   = 'ec2-ssh-key'          // SSH private key credential
-        EC2_HOST_VAR   = 'EC2_HOST'              // Jenkins secret text: your EC2 public IP/hostname
+        DOCKER_IMAGE   = "nadil95/luminarium-agent:latest"
+        EC2_HOST       = "35.179.93.234"
+        EC2_USER       = "ubuntu"
+        SSH_CREDENTIALS = "geo-ssh"
+        APP_DIR        = "/home/ubuntu/startupAgent"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                checkout scm
+                git branch: 'main', url: 'https://github.com/nadil1995/Luminarium-Venture-Agent.git'
             }
         }
 
-        stage('Lint / Sanity Check') {
+        stage('Build & Push Docker Image') {
             steps {
-                sh 'python3 -m py_compile app/config.py app/pipeline.py app/storage.py || true'
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo "Logging in to Docker Hub..."
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+                        echo "Building Docker image..."
+                        export DOCKER_BUILDKIT=0
+                        docker build -t $DOCKER_IMAGE .
+
+                        echo "Pushing image to Docker Hub..."
+                        docker push $DOCKER_IMAGE
+
+                        docker logout
+                    '''
+                }
             }
         }
 
         stage('Deploy to EC2') {
             steps {
-                withCredentials([
-                    sshUserPrivateKey(credentialsId: "${EC2_SSH_CRED}", keyFileVariable: 'SSH_KEY'),
-                    string(credentialsId: "${EC2_HOST_VAR}",            variable: 'EC2_HOST')
-                ]) {
-                    sh """
-                        # Ensure remote app directory exists
-                        ssh -i \"$SSH_KEY\" -o StrictHostKeyChecking=no \
-                            ${EC2_USER}@\${EC2_HOST} \
-                            "mkdir -p ${APP_DIR}"
+                sshagent([SSH_CREDENTIALS]) {
+                    sh '''
+                        echo "Copying compose files to EC2..."
+                        ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "mkdir -p $APP_DIR"
 
-                        # Sync project files (exclude secrets and generated artefacts)
-                        rsync -az --delete \
-                            --exclude='.env' \
-                            --exclude='credentials/' \
-                            --exclude='data/' \
-                            --exclude='reports/' \
-                            --exclude='.git/' \
-                            --exclude='__pycache__/' \
-                            -e "ssh -i \\"$SSH_KEY\\" -o StrictHostKeyChecking=no" \
-                            ./ ${EC2_USER}@\${EC2_HOST}:${APP_DIR}/
+                        scp -o StrictHostKeyChecking=no docker-compose.yml $EC2_USER@$EC2_HOST:$APP_DIR/docker-compose.yml
+                        scp -o StrictHostKeyChecking=no .env.example        $EC2_USER@$EC2_HOST:$APP_DIR/.env.example
 
-                        # Pull latest images and restart containers
-                        ssh -i \"$SSH_KEY\" -o StrictHostKeyChecking=no \
-                            ${EC2_USER}@\${EC2_HOST} \
-                            "cd ${APP_DIR} && docker compose pull --quiet; docker compose up --build -d"
-                    """
+                        echo "Deploying containers on EC2..."
+                        ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
+                            cd $APP_DIR
+
+                            echo 'Stopping old containers...'
+                            sudo docker stop luminarium_agent luminarium_web 2>/dev/null || true
+                            sudo docker rm   luminarium_agent luminarium_web 2>/dev/null || true
+
+                            echo 'Pulling latest image...'
+                            sudo docker pull $DOCKER_IMAGE
+
+                            echo 'Starting containers with docker compose...'
+                            sudo docker compose up -d
+
+                            echo 'Running containers:'
+                            sudo docker compose ps
+                        "
+                    '''
                 }
             }
         }
 
         stage('Health Check') {
             steps {
-                withCredentials([
-                    sshUserPrivateKey(credentialsId: "${EC2_SSH_CRED}", keyFileVariable: 'SSH_KEY'),
-                    string(credentialsId: "${EC2_HOST_VAR}",            variable: 'EC2_HOST')
-                ]) {
-                    sh """
-                        sleep 10
-                        # Verify both containers are running
-                        ssh -i \"$SSH_KEY\" -o StrictHostKeyChecking=no \
-                            ${EC2_USER}@\${EC2_HOST} \
-                            "cd ${APP_DIR} && docker compose ps --services --filter status=running" \
-                            | grep -E 'agent|web' || (echo 'Containers not running!' && exit 1)
-
-                        # Hit the web UI health endpoint
-                        curl --retry 5 --retry-delay 3 --silent --fail \
-                            http://\${EC2_HOST}:5050/ > /dev/null \
-                            && echo 'Web UI is up' \
-                            || echo 'Warning: web UI not reachable from Jenkins (check security group)'
-                    """
-                }
+                sh '''
+                    sleep 10
+                    curl --retry 5 --retry-delay 3 --silent --fail \
+                        http://$EC2_HOST:5050/ > /dev/null \
+                        && echo "Web UI is up at http://$EC2_HOST:5050" \
+                        || echo "Warning: web UI not reachable — check EC2 security group port 5050"
+                '''
             }
         }
     }
 
     post {
         success {
-            echo "Deployment succeeded. App running at http://\${EC2_HOST}:5050"
+            echo "Deployment completed successfully! App: http://${EC2_HOST}:5050"
         }
         failure {
-            echo "Deployment failed. Check the logs above."
+            echo "Pipeline failed! Check the logs above."
         }
         always {
             cleanWs()

@@ -1,6 +1,6 @@
 services:
   agent:
-    build: .
+    image: nadil95/luminarium-agent:latest
     container_name: luminarium_agent
     command: python app/main.py
     env_file: .env
@@ -9,10 +9,9 @@ services:
       - ./data:/data
       - ./reports:/reports
     restart: unless-stopped
-    depends_on: []
 
   web:
-    build: .
+    image: nadil95/luminarium-agent:latest
     container_name: luminarium_web
     command: python app/web/server.py
     env_file: .env
