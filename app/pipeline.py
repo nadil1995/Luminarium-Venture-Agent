@@ -86,14 +86,21 @@ def run_pipeline(trigger: str = "scheduler", force_ids: list[str] | None = None)
 
             # Individual report
             ind_path = report_gen.generate_individual_report(analysis)
-            ind_s3 = storage.upload_report(ind_path, storage.s3_key_for_individual(sid))
             analysis["individual_report_path"] = ind_path
-            analysis["individual_s3_url"] = ind_s3
 
             db.log_submission_event(run_id, sid, analysis.get("startup_name", startup_label),
                                     "report_generated", ind_path)
 
-            # Mark processed
+            # S3 upload — failure is non-fatal, report still saved locally
+            ind_s3 = ""
+            try:
+                ind_s3 = storage.upload_report(ind_path, storage.s3_key_for_individual(sid))
+            except Exception as s3_err:
+                process_logger.warning(f"S3 upload skipped for {sid}: {s3_err}")
+
+            analysis["individual_s3_url"] = ind_s3
+
+            # Mark processed regardless of S3 outcome
             db.mark_processed(
                 submission_id=sid,
                 timestamp=sub.get("timestamp", ""),
@@ -119,10 +126,14 @@ def run_pipeline(trigger: str = "scheduler", force_ids: list[str] | None = None)
     if analyses:
         try:
             batch_path = report_gen.generate_batch_report(analyses, run_id)
-            batch_s3 = storage.upload_report(batch_path, storage.s3_key_for_batch(run_id))
             process_logger.info(f"Batch report: {batch_path}")
         except Exception as e:
             process_logger.error(f"Batch report generation failed: {e}")
+        if batch_path:
+            try:
+                batch_s3 = storage.upload_report(batch_path, storage.s3_key_for_batch(run_id))
+            except Exception as s3_err:
+                process_logger.warning(f"Batch S3 upload skipped: {s3_err}")
 
     # ── 6. Finish run ──────────────────────────────────────────────────────────
     status = "success" if not errors else ("partial" if analyses else "error")
