@@ -233,6 +233,26 @@ tr:hover td{background:#faf7f2}
   border-radius:12px;padding:14px;white-space:pre-wrap;font-size:13px;
 }
 
+/* ── PDF download button ── */
+.pdf-btn{
+  position:fixed;bottom:28px;right:28px;z-index:999;
+  background:linear-gradient(135deg,#080808,#4b0a12);
+  color:white;border:none;border-radius:999px;
+  padding:12px 22px;font-size:14px;font-weight:700;
+  cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.28);
+  display:flex;align-items:center;gap:8px;
+  transition:opacity .2s;
+}
+.pdf-btn:hover{opacity:.85}
+.pdf-btn svg{width:16px;height:16px;fill:white}
+
+/* ── hide button + hero decoration when printing ── */
+@media print{
+  .pdf-btn{display:none!important}
+  .hero:after{display:none}
+  body{background:white}
+}
+
 /* ── responsive ── */
 @media(max-width:900px){
   .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
@@ -445,6 +465,38 @@ BATCH_TEMPLATE = """<!doctype html>
   </div>
 
 </div>
+
+{# ── PDF download button ── #}
+<button class="pdf-btn" onclick="downloadPDF()">
+  <svg viewBox="0 0 24 24"><path d="M12 16l-5-5 1.4-1.4 2.6 2.6V4h2v8.2l2.6-2.6L17 11zm-7 4h14v2H5z"/></svg>
+  Download PDF
+</button>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+function downloadPDF() {
+  var filename = "Luminarium_Batch_{{ run_id }}_Report.pdf";
+
+  var btn = document.querySelector('.pdf-btn');
+  btn.textContent = 'Generating…';
+  btn.disabled = true;
+
+  var opt = {
+    margin:       [8, 8, 8, 8],
+    filename:     filename,
+    image:        { type: 'jpeg', quality: 0.97 },
+    html2canvas:  { scale: 2, useCORS: true, logging: false },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
+    pagebreak:    { mode: ['avoid-all', 'css'] }
+  };
+
+  html2pdf().set(opt).from(document.body).save().then(function() {
+    btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:white"><path d="M12 16l-5-5 1.4-1.4 2.6 2.6V4h2v8.2l2.6-2.6L17 11zm-7 4h14v2H5z"/></svg> Download PDF';
+    btn.disabled = false;
+  });
+}
+</script>
+
 </body>
 </html>"""
 
@@ -681,6 +733,45 @@ INDIVIDUAL_TEMPLATE = """<!doctype html>
   </div>
 
 </div>
+
+{# ── PDF download button ── #}
+<button class="pdf-btn" onclick="downloadPDF()">
+  <svg viewBox="0 0 24 24"><path d="M12 16l-5-5 1.4-1.4 2.6 2.6V4h2v8.2l2.6-2.6L17 11zm-7 4h14v2H5z"/></svg>
+  Download PDF
+</button>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+function downloadPDF() {
+  // Build filename: StartupName_SubmitterName_Report.pdf
+  // sanitize() strips any character that isn't a letter, digit, or hyphen
+  function sanitize(s) {
+    return (s || 'Unknown').replace(/[^a-zA-Z0-9\-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  }
+  var startup   = sanitize("{{ a.startup_name }}");
+  var submitter = sanitize("{{ a.submitter_name }}");
+  var filename  = startup + "_" + submitter + "_Report.pdf";
+
+  var btn = document.querySelector('.pdf-btn');
+  btn.textContent = 'Generating…';
+  btn.disabled = true;
+
+  var opt = {
+    margin:       [8, 8, 8, 8],        // mm: top, left, bottom, right
+    filename:     filename,
+    image:        { type: 'jpeg', quality: 0.97 },
+    html2canvas:  { scale: 2, useCORS: true, logging: false },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak:    { mode: ['avoid-all', 'css'] }
+  };
+
+  html2pdf().set(opt).from(document.body).save().then(function() {
+    btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:white"><path d="M12 16l-5-5 1.4-1.4 2.6 2.6V4h2v8.2l2.6-2.6L17 11zm-7 4h14v2H5z"/></svg> Download PDF';
+    btn.disabled = false;
+  });
+}
+</script>
+
 </body>
 </html>"""
 
