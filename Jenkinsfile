@@ -3,9 +3,9 @@ pipeline {
 
     environment {
         DOCKER_IMAGE   = "nadil95/luminarium-agent:latest"
-        EC2_HOST       = "54.193.154.122"
+        EC2_HOST       = "13.52.100.206"
         EC2_USER       = "ubuntu"
-        SSH_CREDENTIALS = "lum-ssh"
+        SSH_CREDENTIALS = "webagent"
         APP_DIR        = "/home/ubuntu/startupAgent"
     }
 
