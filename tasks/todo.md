@@ -3,101 +3,147 @@
 ## Architecture Overview
 
 ```
-Google Form → Google Sheets API → Analyzer (Claude) → HTML Reports → S3
+Google Form → Google Sheets API → Analyzer (GPT-4o) → HTML Reports → S3
                                                               ↓
                                Web UI / CLI ← Scheduler (2x/day)
 ```
 
 ### Services (Docker Compose)
-- **agent** — Python app: scheduler + Google Sheets poller + Claude analyzer + report generator
+- **agent** — Python app: scheduler + Google Sheets poller + GPT-4o analyzer + report generator
 - **web** — Flask web UI: view reports, trigger manual runs, view logs
 
 ### Storage
-- **AWS S3** — generated HTML reports + submission JSON snapshots
+- **AWS S3** — generated HTML reports + logs
 - **SQLite** (volume-mounted) — processed submission IDs + run logs + submission logs
+
+---
+
+## Venture IQ Upgrade — Comprehensive Analyzer Enhancement
+
+### Goal
+Transform the analyzer from a generic pitch summarizer into a venture analyst trained on
+Luminarium Capital's "Getting to Wow" assessment style — separating what is interesting
+from what is investable, and exposing what is real vs. claimed vs. missing.
 
 ---
 
 ## Todo Checklist
 
-### Setup & Config
-- [ ] Create `tasks/todo.md` (this file)
-- [ ] Create `.env.example` with all required env vars
-- [ ] Create `docker-compose.yml` with `agent` and `web` services
-- [ ] Create `Dockerfile` for shared Python image
+### Phase 1 — analyzer.py rewrite
 
-### Core Agent (`app/`)
-- [ ] `app/config.py` — load env vars, validate required keys
-- [ ] `app/logger.py` — structured logging to file + stdout (process log + submission log)
-- [ ] `app/db.py` — SQLite: `processed_submissions`, `run_log`, `submission_log` tables
-- [ ] `app/google_sheets.py` — authenticate with service account, fetch all rows from linked Sheet
-- [ ] `app/analyzer.py` — send submission data to OpenAI API (gpt-4o), return structured analysis JSON
-- [ ] `app/report_gen.py` — render analysis JSON into styled HTML report (matching attached style)
-- [ ] `app/storage.py` — upload/download reports and snapshots to/from AWS S3
-- [ ] `app/pipeline.py` — orchestrate: fetch → diff → analyze → generate → store → log
-- [ ] `app/scheduler.py` — APScheduler: run pipeline at 08:00 and 20:00 UTC
-- [ ] `app/cli.py` — CLI: `run`, `regenerate <submission_id>`, `list`, `status`
-- [ ] `app/main.py` — entry point: start scheduler + web server
+- [ ] **1.1 New system prompt**
+  - Role: senior VC analyst trained on Getting to Wow! framework
+  - Instruction to never invent data — say "Missing / needs diligence" if not in submission
+  - Instruction to be skeptical, not optimistic
+  - Three-lens evaluation: investment readiness, strategic collaboration, pitch improvement
 
-### Web UI (`app/web/`)
-- [ ] `app/web/server.py` — Flask routes: `/`, `/reports`, `/logs`, `/run`, `/regenerate`
-- [ ] `app/web/templates/index.html` — dashboard: run status, recent reports, trigger buttons
-- [ ] `app/web/templates/logs.html` — view process + submission logs
-- [ ] `app/web/templates/reports.html` — list + open generated reports
+- [ ] **1.2 Proof level classifier (in prompt)**
+  - Level 5: Collected revenue, repeat customers, referenceable case studies
+  - Level 4: Signed paid contracts or paid pilots
+  - Level 3: Active unpaid pilots, live demos, real users
+  - Level 2: LOIs, MOUs, strategic partnerships, soft commitments
+  - Level 1: Concept, prototype, founder claims, vision only
+  - AI must assign a proof_level (1–5) and proof_level_rationale
 
-### Report Style
-- [ ] Match dark-theme HTML style from `judge_report_v3.html` (leaderboard + per-startup cards)
-- [ ] Match detailed single-startup style from `phont_venture_analysis.html`
-- [ ] Two report types: **Batch report** (all new submissions) + **Individual report** (one startup)
+- [ ] **1.3 Score cap enforcement (Python, post-AI)**
+  - Level 1–2 → cap total_score at 74
+  - Level 3    → cap total_score at 79
+  - Level 4    → cap at 88
+  - Level 5    → cap at 95
+  - Above 95 blocked unless manually overridden
+  - Log a warning when score is capped
 
-### Tests & Docs
-- [ ] `README.md` — setup steps, env var table, how to run locally, how to connect Google Form
+- [ ] **1.4 Scoring guardrails (in prompt)**
+  - Never >80 without: verified paid traction + clear buyer + business model + defensible proof + GTM
+  - IP "strong" only if: patent / source code / data moat / partner IP / proprietary workflow
+  - Partnership = traction only if tied to: revenue / contracts / distribution / paid pilot
+  - "Scalable" only if the report explains what repeats without custom labor
+
+- [ ] **1.5 Expanded JSON output schema**
+  New fields the AI must return (in addition to existing):
+  ```
+  proof_level              int 1–5
+  proof_level_rationale    string
+  pitch_oneliners          {current, better, best, what_to_say_instead,
+                            what_to_remove, what_proof_moves_earlier}
+  services_vs_software     {verdict, reusable_parts, custom_parts,
+                            gross_margin_estimate, recurring_revenue_start,
+                            scale_evidence}
+  first_wedge              {who_buys_first, who_owns_budget, why_buy_now,
+                            first_repeatable_use_case, expansion_path,
+                            focus_risk_flag}
+  product_buy_button       {product_name, buyer, pricing_logic,
+                            delivery_model, reusable_ip, custom_work,
+                            repeatability_proof}
+  competitive_landscape    {status_quo, internal_teams, agencies,
+                            existing_platforms, incumbents,
+                            budget_owner_today, why_switch}
+  unit_economics           {cac, ltv, gross_margin, sales_cycle,
+                            contract_length, free_to_paid, retention,
+                            mau_dau, notes}
+  ip_defensibility         {verdict, evidence, patent_filings,
+                            data_moat, switching_costs, notes}
+  diligence_checklist      [{item, status, notes}]  — covers all 25 items
+  japan_luminarium_fit     {japan_relevance, luminarium_fit,
+                            venture_iq_potential, love_my_robot_fit,
+                            pilot_ideas, notes}
+  next_90_day_proof_plan   [{action, purpose, timeline}]
+  final_conclusion         {investment_readiness, strategic_value,
+                            main_diligence_blocker, recommended_next_step,
+                            founder_facing_summary, investor_facing_summary}
+  ```
+
+- [ ] **1.6 Diligence checklist (25 items) in prompt**
+  AI must evaluate each item as: Answered | Partial | Missing
+  Items: R&D milestones, roadmap, prototype/demo, user interviews, MAU/DAU,
+  paid vs unpaid users, free-to-paid conversion, CAC, LTV, retention,
+  sales cycle, contract length, regulatory risk, privacy/data, IP ownership,
+  legal issues, founder background, runway, use of funds, existing debt/SAFEs,
+  director/advisor contracts, team completeness, competitive alternatives,
+  business model proof, go-to-market evidence
 
 ---
 
-## Environment Variables Required
+### Phase 2 — report_gen.py new sections
 
-| Var | Description |
-|-----|-------------|
-| `GOOGLE_SHEET_ID` | ID of the Sheet linked to the Google Form |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | Path to service account key file (mounted as volume) |
-| `OPENAI_API_KEY` | OpenAI API key |
-| `AWS_ACCESS_KEY_ID` | AWS credentials |
-| `AWS_SECRET_ACCESS_KEY` | AWS credentials |
-| `AWS_REGION` | e.g. `us-east-1` |
-| `S3_BUCKET` | Bucket name for reports |
-| `SCHEDULE_HOURS` | Comma-separated UTC hours to run, default `8,20` |
-| `WEB_PORT` | Flask port, default `5050` |
+- [ ] **2.1 Update INDIVIDUAL_TEMPLATE** — add new sections after existing ones:
+  - **20-Second Wow** — current / better / best one-liner + what to say instead + what to remove
+  - **Proof Hierarchy** — visual level badge (1–5) with rationale
+  - **Services vs Software** — verdict card + breakdown table
+  - **First Wedge Market** — who buys, why now, expansion path, focus risk flag
+  - **Product Buy Button** — what can be purchased today, by whom, at what price
+  - **Competitive Landscape** — expanded table (status quo, agencies, incumbents, budget owner)
+  - **Unit Economics** — table with all metrics, "Missing" shown clearly in red
+  - **IP & Defensibility** — evidence-based verdict
+  - **Diligence Checklist** — 25-item table with Answered / Partial / Missing badges
+  - **Japan / Luminarium Fit** — conditional section (only shown if relevant)
+  - **Next 90-Day Proof Plan** — action table
+  - **Final Conclusion** — 6-part separated verdict replacing current "Bottom Line"
+
+- [ ] **2.2 Update BATCH_TEMPLATE** — add proof level badge to leaderboard row
 
 ---
 
-## Key Design Decisions
+### Phase 3 — deploy
 
-1. **Google Form → Sheet**: Form submissions must be linked to a Google Sheet. Agent reads the Sheet via Sheets API (no Forms API needed).
-2. **Deduplication**: Each row has a `Timestamp` column. We store a hash of `(timestamp + email)` as the unique submission ID in SQLite.
-3. **Regenerate**: CLI/web can force-reprocess any submission ID even if already processed.
-4. **Two report modes**:
-   - *Batch*: all new submissions in one run → one combined HTML (judge_report style)
-   - *Individual*: deep-dive on one submission → per-startup HTML (phont_venture style)
-5. **Logs**: Two separate log files — `process.log` (scheduler runs, errors) and `submissions.log` (per-submission events).
+- [ ] **3.1** Rebuild Docker image locally to test
+- [ ] **3.2** Push to GitHub → Jenkins pipeline redeploys to EC2
+- [ ] **3.3** Regenerate all existing reports to apply new template
+- [ ] **3.4** Verify one report end-to-end against Carolina's manual assessment style
+
+---
+
+## Files Changed
+
+| File | Change |
+|---|---|
+| `app/analyzer.py` | Full rewrite of system prompt, user prompt, scoring logic, score caps |
+| `app/report_gen.py` | Add 11 new sections to INDIVIDUAL_TEMPLATE, proof badge to BATCH_TEMPLATE |
+
+No changes needed to: `pipeline.py`, `db.py`, `storage.py`, `web/server.py`, `scheduler.py`
 
 ---
 
 ## Review
 
-All tasks complete. Built:
-
-- `Dockerfile` + `docker-compose.yml` — two services: `agent` (scheduler+web) and `web` (standalone web UI)
-- `app/config.py` — env var loader with validation
-- `app/db.py` — SQLite: `processed_submissions`, `run_log`, `submission_log` tables
-- `app/logger.py` — `process.log` + `submissions.log`
-- `app/google_sheets.py` — gspread client, fuzzy header mapping for all 25 form fields, dedup by sha256(timestamp+email)
-- `app/analyzer.py` — OpenAI GPT-4o structured JSON analysis, weighted 0-100 score
-- `app/report_gen.py` — Jinja2 HTML: batch (leaderboard style) + individual (deep-dive style)
-- `app/storage.py` — S3 upload/download, gracefully disabled if no credentials
-- `app/pipeline.py` — full orchestration with new/skip logic, regenerate support
-- `app/scheduler.py` — APScheduler UTC cron (configurable hours)
-- `app/cli.py` — `run`, `regenerate`, `list`, `runs`, `status` commands
-- `app/main.py` — starts scheduler + Flask in same process
-- `app/web/server.py` + three templates — dark-theme dashboard, reports list, logs viewer
-- `.gitignore`, `.env.example`, `credentials/.gitkeep`
+_To be filled after implementation._
