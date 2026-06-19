@@ -551,13 +551,21 @@ INDIVIDUAL_TEMPLATE = """<!doctype html>
       <p><b>"{{ a.wow_framing }}"</b></p>
     </div>
     {% endif %}
+    {# Report confidence banner #}
+    {% set rc = a.report_confidence if a.report_confidence is defined else {} %}
+    {% set rc_rating = rc.get('rating','Medium-Low') %}
+    <div class="callout {% if rc_rating == 'High' %}ok{% elif rc_rating == 'Medium' %}{% else %}warning{% endif %}" style="margin-bottom:16px">
+      <b>Report Confidence: {{ rc_rating }}</b> —
+      <span class="small">{{ rc.get('reason','Based on founder form submission only. Deck and financials not provided.') }}</span>
+    </div>
+
     <div class="grid grid-4">
       <div class="card">
         <div class="label">Overall Score</div>
         <div class="metric" style="color:{{ score_color(a.total_score) }}">{{ a.total_score }}/100</div>
         <div class="bar" style="margin-top:8px"><div class="bar-fill" style="width:{{ a.total_score }}%"></div></div>
         {% if a.score_capped is defined and a.score_capped %}
-        <p class="small" style="color:var(--orange);margin-top:4px">⚠ Score capped at proof level {{ a.proof_level }}</p>
+        <p class="small" style="color:var(--red);margin-top:4px">Score capped — proof level {{ a.proof_level }}</p>
         {% endif %}
       </div>
       <div class="card">
@@ -576,6 +584,46 @@ INDIVIDUAL_TEMPLATE = """<!doctype html>
         <p class="small" style="margin-top:6px">{{ a.top_strength }}</p>
       </div>
     </div>
+  </section>
+
+  {# ── 2b. Why Now ── #}
+  {% set wn = a.why_now if a.why_now is defined else {} %}
+  <section>
+    <h2>Why Now?</h2>
+    <p class="lead">{{ wn.get('summary','Missing / not assessed') }}</p>
+    {% set wn_strength = wn.get('strength','missing') %}
+    <span class="badge {{ 'green' if wn_strength == 'strong' else ('yellow' if wn_strength == 'moderate' else 'red') }}">
+      Timing signal: {{ wn_strength|title }}
+    </span>
+    {% if wn.get('drivers') %}
+    <ul style="margin-top:12px">
+      {% for d in wn.get('drivers',[]) %}<li class="small">{{ d }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if wn.get('notes') %}
+    <p class="small" style="margin-top:8px;color:var(--muted)">{{ wn.get('notes') }}</p>
+    {% endif %}
+  </section>
+
+  {# ── 2c. Bottom-Up Market Sizing ── #}
+  {% set bum = a.bottom_up_market if a.bottom_up_market is defined else {} %}
+  <section>
+    <h2>Market Sizing — Bottom Up</h2>
+    <p class="lead">Not top-down TAM. Sized from the first beachhead buyer outward.</p>
+    <table>
+      <thead><tr><th style="width:30%">Input</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td><b>Beachhead Buyer</b></td><td>{{ bum.get('beachhead_buyer','Missing') }}</td></tr>
+        <tr><td><b>Primary Use Case</b></td><td>{{ bum.get('use_case','Missing') }}</td></tr>
+        <tr><td><b>Price per Customer (ACV)</b></td><td>{{ bum.get('price_per_customer','Missing') }}</td></tr>
+        <tr><td><b>Reachable Buyers</b></td><td>{{ bum.get('reachable_buyers','Missing') }}</td></tr>
+        <tr><td><b>SAM Estimate</b></td><td><b>{{ bum.get('sam_estimate','Missing') }}</b></td></tr>
+        <tr><td><b>TAM Context</b></td><td>{{ bum.get('tam_context','Missing') }}</td></tr>
+      </tbody>
+    </table>
+    {% if bum.get('notes') %}
+    <p class="small" style="margin-top:8px;color:var(--muted)">{{ bum.get('notes') }}</p>
+    {% endif %}
   </section>
 
   {# ── 3. 20-Second Wow ── #}
@@ -888,6 +936,54 @@ INDIVIDUAL_TEMPLATE = """<!doctype html>
     </table>
   </section>
 
+  {# ── 14b. Claims Needing Verification ── #}
+  {% set claims = a.claims_needing_verification if a.claims_needing_verification is defined else [] %}
+  {% if claims %}
+  <section>
+    <h2>Claims Needing Verification</h2>
+    <p class="lead">Every significant founder claim has been labelled by source. "Needs Verification" means the agent found no supporting evidence.</p>
+    {% set label_colors = {
+      'Submitted by founder':    'blue',
+      'Inferred by Venture IQ':  'yellow',
+      'Needs Verification':      'red',
+      'External market context': 'green'
+    } %}
+    <table>
+      <thead><tr>
+        <th style="width:35%">Claim</th>
+        <th style="width:25%">Source</th>
+        <th style="width:40%">Verification Needed</th>
+      </tr></thead>
+      <tbody>
+      {% for c in claims %}
+      <tr>
+        <td class="small">{{ c.claim }}</td>
+        <td><span class="badge {{ label_colors.get(c.label, 'red') }}">{{ c.label }}</span></td>
+        <td class="small">{{ c.verification_needed }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {# ── 14c. Missing Slides ── #}
+  {% set ms = a.missing_slides if a.missing_slides is defined else [] %}
+  {% if ms %}
+  <section>
+    <h2>Missing Slides / Sections</h2>
+    <p class="lead">Slides or sections that investors will ask for but are absent from the current pitch.</p>
+    <div class="grid grid-3">
+      {% for slide in ms %}
+      <div class="card">
+        <span class="badge red" style="margin-bottom:8px;display:inline-block">Missing</span>
+        <p class="small">{{ slide }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   {# ── 15. Key Diligence Questions ── #}
   <section>
     <h2>Key Diligence Questions</h2>
@@ -981,6 +1077,54 @@ INDIVIDUAL_TEMPLATE = """<!doctype html>
     {% endif %}
   </section>
   {% endif %}
+
+  {# ── 18b. Investor Action Items ── #}
+  <section>
+    <h2>Investor Action Items Before Introduction</h2>
+    <p class="lead">These must be resolved before Luminarium introduces this company to investors.</p>
+
+    <div class="grid grid-2">
+      <div>
+        <h3>Top 10 Diligence Questions</h3>
+        <ol style="padding-left:18px;margin:0">
+          {% for q in a.top_diligence_questions if a.top_diligence_questions is defined %}
+          <li class="small" style="margin:7px 0">{{ q }}</li>
+          {% endfor %}
+        </ol>
+      </div>
+      <div>
+        <h3>Top 5 Documents to Request</h3>
+        <ol style="padding-left:18px;margin:0">
+          {% for d in a.top_docs_to_request if a.top_docs_to_request is defined %}
+          <li class="small" style="margin:7px 0">{{ d }}</li>
+          {% endfor %}
+        </ol>
+      </div>
+    </div>
+
+    <div class="grid grid-2" style="margin-top:16px">
+      <div class="card">
+        <h3>Top 3 Claims Requiring Independent Proof</h3>
+        <ol style="padding-left:18px;margin:0">
+          {% for c in a.top_claims_needing_proof if a.top_claims_needing_proof is defined %}
+          <li class="small" style="margin:7px 0">
+            <span class="badge red" style="margin-right:6px">Verify</span>{{ c }}
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+      <div class="card">
+        <h3>Top 3 Pitch Changes Before Sending to Investors</h3>
+        <ol style="padding-left:18px;margin:0">
+          {% for ch in a.pitch_changes_before_investors if a.pitch_changes_before_investors is defined %}
+          <li class="small" style="margin:7px 0">
+            <span class="badge orange" style="margin-right:6px">Must fix</span>{{ ch }}
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </div>
+  </section>
 
   {# ── 19. Final Luminarium Capital View ── #}
   {% set fc = a.final_conclusion if a.final_conclusion is defined else {} %}
