@@ -47,8 +47,11 @@ class Config:
     WEB_SECRET_KEY: str = os.getenv("WEB_SECRET_KEY", "dev-secret-key")
 
     # SendGrid notifications (optional — disabled if key not set)
+    # NOTIFY_EMAIL_TO accepts comma-separated addresses: a@x.com,b@x.com
     SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY", "")
-    NOTIFY_EMAIL_TO: str = os.getenv("NOTIFY_EMAIL_TO", "")
+    NOTIFY_EMAIL_TO: list[str] = [
+        e.strip() for e in os.getenv("NOTIFY_EMAIL_TO", "").split(",") if e.strip()
+    ]
     NOTIFY_EMAIL_FROM: str = os.getenv("NOTIFY_EMAIL_FROM", "")
     NOTIFY_ENABLED: bool = bool(
         os.getenv("SENDGRID_API_KEY") and

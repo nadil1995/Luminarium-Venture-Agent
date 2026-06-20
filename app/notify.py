@@ -62,7 +62,6 @@ def send_report_notification(analysis: dict, report_url: str = "") -> bool:
     cc = _confidence_color(confidence)
 
     report_link = report_url or f"http://{config.WEB_PORT}/"
-    regen_link  = report_link  # web UI handles regen
 
     subject = (
         f"[Venture IQ] New Report: {startup} — "
@@ -196,21 +195,19 @@ def send_report_notification(analysis: dict, report_url: str = "") -> bool:
         f"Review required before delivery to founder."
     )
 
-    message = Mail(
-        from_email=config.NOTIFY_EMAIL_FROM,
-        to_emails=config.NOTIFY_EMAIL_TO,
-        subject=subject,
-        html_content=html,
-        plain_text_content=plain,
-    )
-
+    recipients = ", ".join(config.NOTIFY_EMAIL_TO)
     try:
         sg = SendGridAPIClient(config.SENDGRID_API_KEY)
-        resp = sg.send(message)
-        process_logger.info(
-            f"Notification sent for {startup} → {config.NOTIFY_EMAIL_TO} "
-            f"(status {resp.status_code})"
-        )
+        for recipient in config.NOTIFY_EMAIL_TO:
+            message = Mail(
+                from_email=config.NOTIFY_EMAIL_FROM,
+                to_emails=recipient,
+                subject=subject,
+                html_content=html,
+                plain_text_content=plain,
+            )
+            sg.send(message)
+        process_logger.info(f"Notification sent for {startup} → {recipients}")
         return True
     except Exception as e:
         process_logger.warning(f"SendGrid notification failed for {startup}: {e}")
