@@ -46,5 +46,15 @@ class Config:
     WEB_PORT: int = int(os.getenv("WEB_PORT", "5050"))
     WEB_SECRET_KEY: str = os.getenv("WEB_SECRET_KEY", "dev-secret-key")
 
+    # SendGrid notifications (optional — disabled if key not set)
+    SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY", "")
+    NOTIFY_EMAIL_TO: str = os.getenv("NOTIFY_EMAIL_TO", "")
+    NOTIFY_EMAIL_FROM: str = os.getenv("NOTIFY_EMAIL_FROM", "")
+    NOTIFY_ENABLED: bool = bool(
+        os.getenv("SENDGRID_API_KEY") and
+        os.getenv("NOTIFY_EMAIL_TO") and
+        os.getenv("NOTIFY_EMAIL_FROM")
+    )
+
 
 config = Config()

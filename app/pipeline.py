@@ -15,10 +15,11 @@ force_ids: list of submission_ids to reprocess even if already done
 """
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from app import db, analyzer, report_gen, storage
 from app.google_sheets import fetch_submissions
 from app.logger import process_logger, submission_logger
+from app import notify
 
 
 def run_pipeline(trigger: str = "scheduler", force_ids: list[str] | None = None) -> dict:
@@ -27,7 +28,7 @@ def run_pipeline(trigger: str = "scheduler", force_ids: list[str] | None = None)
     Returns a summary dict with run_id, counts, report paths.
     """
     force_ids = set(force_ids or [])
-    run_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:6]
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:6]
 
     process_logger.info(f"=== Pipeline start | run_id={run_id} | trigger={trigger} ===")
     db.init_db()
@@ -111,6 +112,11 @@ def run_pipeline(trigger: str = "scheduler", force_ids: list[str] | None = None)
                 report_path=ind_path,
                 s3_url=ind_s3,
             )
+
+            # Send review notification — non-fatal if it fails
+            report_url = ind_s3 if ind_s3 else f"http://localhost:5050/reports/{sid}"
+            notify.send_report_notification(analysis, report_url=report_url)
+
             analyses.append(analysis)
 
         except Exception as e:
