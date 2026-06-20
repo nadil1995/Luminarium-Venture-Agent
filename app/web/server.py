@@ -37,12 +37,11 @@ def create_app() -> Flask:
         db.init_db()
         runs = db.get_runs(limit=10)
         processed = db.get_all_processed(limit=5)
-        schedule_hours = config.SCHEDULE_HOURS
         return render_template(
             "index.html",
             runs=runs,
             processed=processed,
-            schedule_hours=schedule_hours,
+            schedule_interval=config.SCHEDULE_INTERVAL_MINUTES,
         )
 
     # ── Reports list ───────────────────────────────────────────────────────────

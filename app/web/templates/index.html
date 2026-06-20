@@ -7,7 +7,7 @@
     <div>
       <h1>Dashboard</h1>
       <div class="small" style="margin-top:4px">
-        Scheduler runs at UTC hours: <b>{{ schedule_hours | join(', ') }}</b>
+        Polls for new submissions every <b>{{ schedule_interval }} minute(s)</b>
       </div>
     </div>
     <div style="display:flex;gap:10px">
@@ -42,7 +42,7 @@
   <div class="card" style="text-align:center">
     <div class="small">Next Scheduled Run</div>
     <div style="font-size:15px;font-weight:700;color:var(--mid);margin-top:8px">
-      {% if schedule_hours %}{{ schedule_hours[0] }}:00 & {{ schedule_hours[-1] }}:00 UTC{% else %}—{% endif %}
+      Every {{ schedule_interval }} min
     </div>
   </div>
 </div>
