@@ -30,12 +30,8 @@ class Config:
         (os.getenv("AWS_S3_BUCKET") or os.getenv("S3_BUCKET"))
     )
 
-    # Scheduler
-    SCHEDULE_HOURS: list[int] = [
-        int(h.strip())
-        for h in os.getenv("SCHEDULE_HOURS", "8,20").split(",")
-        if h.strip().isdigit()
-    ]
+    # Scheduler — interval in minutes (default 2)
+    SCHEDULE_INTERVAL_MINUTES: int = int(os.getenv("SCHEDULE_INTERVAL_MINUTES", "2"))
 
     # Paths
     DB_PATH: str = os.getenv("DB_PATH", "/data/luminarium.db")
