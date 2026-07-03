@@ -32,6 +32,8 @@ class Config:
 
     # Scheduler — interval in minutes (default 2)
     SCHEDULE_INTERVAL_MINUTES: int = int(os.getenv("SCHEDULE_INTERVAL_MINUTES", "2"))
+    # Google Sheets polling scheduler — disabled in API mode (in-house form calls the API)
+    SCHEDULER_ENABLED: bool = os.getenv("SCHEDULER_ENABLED", "false").lower() == "true"
 
     # Paths
     DB_PATH: str = os.getenv("DB_PATH", "/data/luminarium.db")
@@ -41,6 +43,10 @@ class Config:
     # Web
     WEB_PORT: int = int(os.getenv("WEB_PORT", "5050"))
     WEB_SECRET_KEY: str = os.getenv("WEB_SECRET_KEY", "dev-secret-key")
+
+    # Agent API — shared secret for the User Management app (Bearer auth on
+    # POST /generate-report and on the outgoing callback POST)
+    AGENT_API_KEY: str = os.getenv("AGENT_API_KEY", "")
 
     # SendGrid notifications (optional — disabled if key not set)
     # NOTIFY_EMAIL_TO accepts comma-separated addresses: a@x.com,b@x.com

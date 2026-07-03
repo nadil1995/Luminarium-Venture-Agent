@@ -12,7 +12,7 @@ Routes:
 import os
 import threading
 from flask import Flask, render_template, jsonify, abort, send_file, request
-from app import db, pipeline
+from app import db, pipeline, api_worker
 from app.config import config
 from app.logger import process_logger
 
@@ -116,7 +116,60 @@ def create_app() -> Flask:
     def run_status():
         return jsonify(_running_run or {"status": "idle"})
 
+    # ── Agent API: generate a report from external form data ───────────────────
+    @app.route("/generate-report", methods=["POST"])
+    def generate_report():
+        # 1. Auth
+        if not _bearer_ok(request):
+            return jsonify({"error": "Unauthorized"}), 401
+
+        # 2. Parse + validate payload
+        payload = request.get_json(silent=True) or {}
+        report_id = payload.get("report_id")
+        form_data = payload.get("form_data")
+        callback_url = payload.get("callback_url")
+
+        missing = [
+            name for name, val in (
+                ("report_id", report_id),
+                ("form_data", form_data),
+                ("callback_url", callback_url),
+            ) if not val
+        ]
+        if missing:
+            return jsonify({
+                "error": f"Missing required field(s): {', '.join(missing)}"
+            }), 400
+        if not isinstance(form_data, dict):
+            return jsonify({"error": "form_data must be a JSON object"}), 400
+
+        # 3. Fire background generation, respond immediately
+        t = threading.Thread(
+            target=api_worker.run,
+            args=(report_id, form_data, callback_url),
+            kwargs={
+                "user_data": payload.get("user_data"),
+                "payment_data": payload.get("payment_data"),
+            },
+            daemon=True,
+        )
+        t.start()
+        process_logger.info(f"[api] Accepted report_id={report_id} — generating in background.")
+        return jsonify({"status": "processing", "report_id": report_id}), 202
+
     return app
+
+
+def _bearer_ok(req) -> bool:
+    """Validate 'Authorization: Bearer <AGENT_API_KEY>'. False if key unset."""
+    if not config.AGENT_API_KEY:
+        process_logger.error("[api] AGENT_API_KEY not configured — rejecting request.")
+        return False
+    header = req.headers.get("Authorization", "")
+    if not header.startswith("Bearer "):
+        return False
+    token = header[len("Bearer "):].strip()
+    return token == config.AGENT_API_KEY
 
 
 def _read_log(filename: str, tail: int = 200) -> list[str]:

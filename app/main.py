@@ -15,7 +15,13 @@ def main():
     db.init_db()
     process_logger.info("Database initialised.")
 
-    scheduler = start_scheduler()
+    # Google Sheets polling is retired in API mode — the in-house form calls
+    # POST /generate-report on each submit. Re-enable via SCHEDULER_ENABLED=true.
+    scheduler = None
+    if config.SCHEDULER_ENABLED:
+        scheduler = start_scheduler()
+    else:
+        process_logger.info("Scheduler disabled (API mode) — waiting for /generate-report calls.")
 
     app = create_app()
 
@@ -29,8 +35,9 @@ def main():
     try:
         flask_thread.join()
     except (KeyboardInterrupt, SystemExit):
-        process_logger.info("Shutting down scheduler…")
-        scheduler.shutdown()
+        if scheduler is not None:
+            process_logger.info("Shutting down scheduler…")
+            scheduler.shutdown()
 
 
 if __name__ == "__main__":
