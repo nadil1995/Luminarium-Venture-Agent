@@ -1,6 +1,59 @@
 # Startup Agent — Task Plan
 
-## Current: API Service Layer — POST /generate-report
+## Current: Report not showing on user profile after generation
+
+### Symptom
+API generates the report fine; callback is delivered; but the report never
+appears on the user's profile in the User Management app.
+
+### The delivery chain (where it can break)
+```
+[1] Agent POSTs to callback_url ................ agent logs prove this
+[2] /report-complete saves content,
+    sets status = pending_approval ............. Supabase function logs / DB row
+[3] Admin approves ............................. their admin dashboard
+[4] Approved report rendered on profile ........ their frontend
+```
+Steps 2–4 live in the User Management app. Their own spec: callback sets
+status → pending_approval — reports are DESIGNED not to show until approved.
+The approve → attach-to-profile flow (step 4) was flagged earlier as "to plan"
+and is most likely NOT BUILT yet.
+
+### Diagnosis checklist
+- [ ] **D1** Agent side: on the instance that served the test, run
+      `docker compose logs web | grep "\[api\]"` — confirm
+      "Callback success delivered … status 2xx". If "rejected"/"FAILED",
+      the problem is delivery (AGENT_API_KEY mismatch, wrong callback_url).
+- [ ] **D2** Supabase: check the report row:
+      `select id, user_id, status, length(report_content), created_at
+       from reports where id = '<report_id>';`
+      - status='processing', content null → callback never matched the row
+        → check report-complete function logs + id param handling
+      - status='pending_approval', content present → chain works; missing
+        piece is approval + profile display (most likely)
+      - status='approved' but profile empty → frontend query/render bug
+- [ ] **D3** Confirm which case applies before building the fix.
+
+### Fix plan (User Management app — need codebase path/repo)
+- [ ] **F1** Admin review UI: list reports where status='pending_approval',
+      preview report_content, Approve / Reject buttons.
+- [ ] **F2** Approve action: status → 'approved', set approved_at/approved_by.
+      (Optional per Venture IQ policy: auto-approve when report confidence
+      is High — agent already embeds this in the report.)
+- [ ] **F3** Profile page: query reports where user_id = <profile user> AND
+      status='approved'; render report_content in a sandboxed iframe
+      (srcDoc) — it is a full standalone HTML document with its own CSS/JS.
+- [ ] **F4** RLS policies: users SELECT only their own approved reports;
+      admins see all statuses.
+- [ ] **F5** End-to-end test: form submit → agent → callback →
+      pending_approval → approve → visible on profile.
+
+### Agent repo changes needed
+None — the agent's job ends at callback delivery (confirmed working).
+
+---
+
+## Done: API Service Layer — POST /generate-report
 
 ### Goal
 Expose report generation as a REST API so an external User Management app can POST
