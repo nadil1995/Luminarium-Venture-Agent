@@ -111,6 +111,15 @@ def get_all_processed(limit: int = 200) -> list[dict]:
         return [dict(r) for r in rows]
 
 
+def get_processed(submission_id: str) -> dict | None:
+    with _conn() as con:
+        row = con.execute(
+            "SELECT * FROM processed_submissions WHERE submission_id = ?",
+            (submission_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
 def unmark_processed(submission_id: str):
     """Allow regeneration by removing the processed record."""
     with _conn() as con:

@@ -99,6 +99,17 @@ def create_app() -> Flask:
     # ── Regenerate single submission ───────────────────────────────────────────
     @app.route("/regenerate/<sid>", methods=["POST"])
     def regenerate(sid: str):
+        # API-generated reports don't exist in the Google Sheet — regenerating
+        # them here would only delete the listing. They re-run from the
+        # User Management app instead.
+        row = db.get_processed(sid)
+        if row and row.get("run_id") == "api":
+            return jsonify({
+                "status": "skipped",
+                "message": "This report came via the API — trigger regeneration "
+                           "from the User Management app.",
+            }), 409
+
         _running_run.clear()
         _running_run["status"] = "started"
         t = threading.Thread(
