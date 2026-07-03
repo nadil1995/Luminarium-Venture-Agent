@@ -13,8 +13,9 @@ This worker does NOT touch payment, user accounts, approval, SQLite dedup,
 S3, or SendGrid — its only job is: generate → hand back via callback.
 """
 import time
+from datetime import datetime, timezone
 import requests
-from app import analyzer, report_gen
+from app import analyzer, report_gen, db
 from app.config import config
 from app.logger import process_logger
 
@@ -58,6 +59,23 @@ def run(report_id: str, form_data: dict, callback_url: str,
         process_logger.info(
             f"[api] Report generated ({len(report_content)} bytes) | report_id={report_id}"
         )
+
+        # Record in SQLite so the report appears on the agent's /reports page.
+        # Non-fatal — listing is a convenience, delivery is the job.
+        try:
+            db.init_db()
+            db.mark_processed(
+                submission_id=report_id,
+                timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                submitter_name=submission.get("name", ""),
+                startup_name=analysis.get("startup_name", ""),
+                email=submission.get("email", ""),
+                run_id="api",
+                report_path=report_path,
+            )
+        except Exception as db_err:
+            process_logger.warning(f"[api] Could not record report in DB: {db_err}")
+
         _post_callback(callback_url, report_id, report_content=report_content)
 
     except Exception as e:
